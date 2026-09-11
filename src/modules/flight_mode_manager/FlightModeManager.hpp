@@ -44,6 +44,7 @@
 #include <uORB/Subscription.hpp>
 #include <uORB/SubscriptionCallback.hpp>
 #include <uORB/Publication.hpp>
+#include <uORB/topics/actuator_armed.h>
 #include <uORB/topics/landing_gear.h>
 #include <uORB/topics/parameter_update.h>
 #include <uORB/topics/takeoff_status.h>
@@ -131,6 +132,7 @@ private:
 	uint8_t _takeoff_state{takeoff_status_s::TAKEOFF_STATE_UNINITIALIZED};
 
 	bool _no_matching_task_error_printed{false};
+	bool _throw_lockdown_prev{false};
 
 	perf_counter_t _loop_perf{perf_alloc(PC_ELAPSED, MODULE_NAME": cycle")}; ///< loop duration performance counter
 	hrt_abstime _time_stamp_last_loop{0}; ///< time stamp of last loop iteration
@@ -140,6 +142,7 @@ private:
 
 	uORB::SubscriptionInterval _parameter_update_sub{ORB_ID(parameter_update), 1_s};
 
+	uORB::SubscriptionData<actuator_armed_s> _actuator_armed_sub{ORB_ID(actuator_armed)};
 	uORB::Subscription _takeoff_status_sub{ORB_ID(takeoff_status)};
 	uORB::Subscription _vehicle_attitude_setpoint_sub{ORB_ID(vehicle_attitude_setpoint)};
 	uORB::Subscription _vehicle_command_sub{ORB_ID(vehicle_command)};

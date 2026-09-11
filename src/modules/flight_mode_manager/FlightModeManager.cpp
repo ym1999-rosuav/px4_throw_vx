@@ -356,6 +356,21 @@ void FlightModeManager::generateTrajectorySetpoint(const float dt,
 		_current_task.task->reActivate();
 	}
 
+	// Throw launch: once the lockdown is released (motors start after the throw), reset the
+	// task setpoint to the current state. Otherwise the task keeps the setpoint captured
+	// before the throw (on the ground) and the vehicle would descend back to it, so it
+	// would not hold the altitude/position at which it recovered.
+	_actuator_armed_sub.update();
+	const actuator_armed_s &actuator_armed = _actuator_armed_sub.get();
+
+	if (_current_task.task && _throw_lockdown_prev && !actuator_armed.lockdown
+	    && (_vehicle_status_sub.get().arming_state == vehicle_status_s::ARMING_STATE_ARMED)) {
+		_current_task.task->reActivate();
+		PX4_INFO("Throw launch released: re-initialized flight task setpoint");
+	}
+
+	_throw_lockdown_prev = actuator_armed.lockdown;
+
 
 	setpoint.timestamp = hrt_absolute_time();
 	_trajectory_setpoint_pub.publish(setpoint);
