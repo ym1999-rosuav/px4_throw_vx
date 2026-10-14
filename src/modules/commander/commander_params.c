@@ -1023,6 +1023,26 @@ PARAM_DEFINE_INT32(COM_THROW_EN, 0);
 PARAM_DEFINE_FLOAT(COM_THROW_SPEED, 5);
 
 /**
+ * Height gain before starting motors during throw launch
+ *
+ * After the throw speed threshold is exceeded, the current local position is
+ * saved. The motors are allowed to start once the vehicle has risen by this
+ * height. This starts the motors during ascent instead of waiting for the
+ * vehicle to begin falling.
+ *
+ * The original falling detection remains as a fallback. Set to 0 to disable
+ * the height trigger and retain the original behavior.
+ *
+ * @group Commander
+ * @min 0
+ * @max 3
+ * @decimal 1
+ * @increment 0.1
+ * @unit m
+ */
+PARAM_DEFINE_FLOAT(COM_THROW_HGT, 1.0f);
+
+/**
  * Remaining flight time low failsafe
  *
  * Action the system takes when the remaining flight time is below

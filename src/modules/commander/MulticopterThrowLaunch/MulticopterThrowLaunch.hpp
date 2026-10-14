@@ -59,7 +59,7 @@
 /**
  * 多旋翼抛飞状态机。
  *
- * 继承 ModuleParams 以便定义 COM_THROW_EN / COM_THROW_SPEED 两个参数。
+ * 继承 ModuleParams 以便定义 COM_THROW_EN / COM_THROW_SPEED / COM_THROW_HGT 参数。
  * 典型用法（在 commander 中）：
  *   - 每轮循环调用 update(armed) 推进状态；
  *   - 通过 isThrowLaunchInProgress() 判断是否处于抛飞流程中；
@@ -106,8 +106,8 @@ public:
 	 * DISABLED：功能未使能（COM_THROW_EN=0），不参与抛飞逻辑。
 	 * IDLE    ：功能已使能但未解锁，等待解锁。
 	 * ARMED   ：已解锁，等待检测到抛投动作（速度超过阈值）。
-	 * UNSAFE  ：检测到被抛出，等待飞机到达最高点并开始下坠。
-	 * FLYING  ：检测到下坠，允许启动电机，抛飞完成。
+	 * UNSAFE  ：检测到被抛出，等待上升高度达到阈值或开始下坠。
+	 * FLYING  ：达到启动条件，允许启动电机，抛飞完成。
 	 */
 	enum class ThrowLaunchState {
 		DISABLED = 0,
@@ -118,19 +118,28 @@ public:
 	};
 
 private:
-	// 订阅本地位置话题，用于获取 NED 坐标系下的实时速度（vx/vy/vz）
+	// 订阅本地位置话题，用于获取 NED 坐标系下的实时位置和速度
 	uORB::Subscription _vehicle_local_position_sub{ORB_ID(vehicle_local_position)};
 
 	// 当前状态机状态，默认未使能
 	ThrowLaunchState _throw_launch_state{ThrowLaunchState::DISABLED};
 	// 最近一次从 vehicle_local_position 读取到的速度向量（NED，z 向下为正）
 	matrix::Vector3f _last_velocity{};
+	float _last_position_z{0.f};
+	float _throw_start_z{0.f};
+	uint8_t _last_z_reset_counter{0};
+	uint8_t _throw_start_z_reset_counter{0};
+	bool _last_position_z_valid{false};
+	bool _last_velocity_z_valid{false};
+	bool _throw_start_z_valid{false};
 
 	// 抛飞功能相关参数：
 	//   COM_THROW_EN   —— 抛飞功能总开关（bool）
 	//   COM_THROW_SPEED—— 判定“被抛出”的最小速度阈值（m/s）
+	//   COM_THROW_HGT  —— 检测到抛出后，提前启动电机所需的上升高度（m）
 	DEFINE_PARAMETERS(
 		(ParamBool<px4::params::COM_THROW_EN>) _param_com_throw_en,
-		(ParamFloat<px4::params::COM_THROW_SPEED>) _param_com_throw_min_speed
+		(ParamFloat<px4::params::COM_THROW_SPEED>) _param_com_throw_min_speed,
+		(ParamFloat<px4::params::COM_THROW_HGT>) _param_com_throw_height
 	);
 };
