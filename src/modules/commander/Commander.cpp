@@ -1918,7 +1918,10 @@ void Commander::run()
 		_actuator_armed.armed = isArmed();
 		_actuator_armed.prearmed = getPrearmState();
 		_actuator_armed.ready_to_arm = _vehicle_status.pre_flight_checks_pass || isArmed();
-		_actuator_armed.lockdown = _multicopter_throw_launch.isThrowLaunchInProgress();
+		// Use the latest armed state as well as the throw state. The arming request is
+		// handled after MulticopterThrowLaunch::update() in this loop, so the throw
+		// state can still be IDLE for one cycle immediately after arming.
+		_actuator_armed.lockdown = _multicopter_throw_launch.shouldLockdown(isArmed());
 		// _actuator_armed.kill // action_request_s::ACTION_KILL
 		_actuator_armed.termination = (_vehicle_status.nav_state == _vehicle_status.NAVIGATION_STATE_TERMINATION);
 		// _actuator_armed.in_esc_calibration_mode // VEHICLE_CMD_PREFLIGHT_CALIBRATION

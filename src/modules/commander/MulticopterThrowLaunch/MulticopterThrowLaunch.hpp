@@ -38,8 +38,9 @@
  *
  * 多旋翼“抛飞”起飞功能的声明。
  *
- * 该类被 commander 模块持有，提供一个简单的状态机：操作者解锁后把飞机抛向
- * 空中，飞控检测到抛投速度并等待飞机开始下坠，随后允许电机启动完成起飞。
+ * 该类被 commander 模块持有，提供一个简单的状态机：操作者解锁后把飞机斜向
+ * 上抛，飞控检测抛投速度，再连续确认真实上升高度；若错过高度触发，则在确认
+ * 已真实上升后以开始下坠作为兜底，随后允许电机启动完成起飞。
  * 具体状态迁移逻辑见 MulticopterThrowLaunch.cpp 的 update()。
  *
  * @author Michał Barciś <mbarcis@mbarcis.net>
@@ -48,6 +49,7 @@
 #pragma once
 
 // matrix::Vector3f 等线性代数工具，用于速度向量运算（longerThan、取分量等）
+#include <drivers/drv_hrt.h>
 #include <lib/matrix/matrix/math.hpp>
 // ModuleParams：提供参数（DEFINE_PARAMETERS）机制
 #include <px4_platform_common/module_params.h>
@@ -79,12 +81,28 @@ public:
 	 * 是否正在进行抛飞流程。
 	 * 用于 commander 判断是否需要屏蔽常规的“未解锁/地面”起飞逻辑。
 	 *
-	 * @return 功能未使能（DISABLED）或已完成起飞（FLYING）时返回 false，
-	 *         其余状态（IDLE/ARMED/UNSAFE）返回 true。
+	 * @return 仅在已经解锁且电机需要保持锁定的 ARMED/UNSAFE 状态返回 true。
+	 *         IDLE 必须返回 false，否则会阻止未解锁状态下的 QGC 电机测试。
 	 */
 	bool isThrowLaunchInProgress() const
 	{
-		return _throw_launch_state != ThrowLaunchState::DISABLED
+		return _throw_launch_state == ThrowLaunchState::ARMED
+		       || _throw_launch_state == ThrowLaunchState::UNSAFE;
+	}
+
+	/**
+	 * 当前是否必须锁住电机输出。
+	 *
+	 * commander 在一个周期内先更新抛飞状态机，随后才处理解锁请求。因此刚解锁
+	 * 的那个周期中，状态仍可能是 IDLE。这里同时检查最新的 armed 状态，确保该
+	 * 周期立即进入 lockdown，同时在未解锁时仍允许 QGC 电机测试。
+	 *
+	 * @param armed commander 处理完本周期解锁/上锁请求后的最新解锁状态。
+	 * @return 已解锁且抛飞状态尚未完成时返回 true。
+	 */
+	bool shouldLockdown(const bool armed) const
+	{
+		return armed && _throw_launch_state != ThrowLaunchState::DISABLED
 		       && _throw_launch_state != ThrowLaunchState::FLYING;
 	}
 
@@ -126,20 +144,39 @@ private:
 	// 最近一次从 vehicle_local_position 读取到的速度向量（NED，z 向下为正）
 	matrix::Vector3f _last_velocity{};
 	float _last_position_z{0.f};
+	float _waiting_reference_z{0.f};
 	float _throw_start_z{0.f};
 	uint8_t _last_z_reset_counter{0};
 	uint8_t _throw_start_z_reset_counter{0};
 	bool _last_position_z_valid{false};
+	// 水平速度可能因未安装 GPS/光流而无效；此时抛飞检测退化为仅使用有效的垂直速度。
+	bool _last_velocity_xy_valid{false};
 	bool _last_velocity_z_valid{false};
+	bool _waiting_reference_z_valid{false};
 	bool _throw_start_z_valid{false};
+	bool _seen_real_climb{false};
+	bool _throw_timeout_reported{false};
+	bool _enable_while_armed_reported{false};
+	bool _disable_while_armed_reported{false};
+	hrt_abstime _height_condition_since{0};
+	hrt_abstime _fall_condition_since{0};
+	hrt_abstime _throw_detected_at{0};
 
 	// 抛飞功能相关参数：
 	//   COM_THROW_EN   —— 抛飞功能总开关（bool）
 	//   COM_THROW_SPEED—— 判定“被抛出”的最小速度阈值（m/s）
 	//   COM_THROW_HGT  —— 检测到抛出后，提前启动电机所需的上升高度（m）
+	//   COM_THROW_TCONF—— 高度/下降条件必须连续成立的时间（s）
+	//   COM_THROW_VUP  —— 确认真实上升所需的最小向上速度（m/s）
+	//   COM_THROW_VDN  —— 下降兜底所需的最小向下速度（m/s）
+	//   COM_THROW_TMO  —— 抛出检测后的超时告警时间（s），超时保持电机锁定
 	DEFINE_PARAMETERS(
 		(ParamBool<px4::params::COM_THROW_EN>) _param_com_throw_en,
 		(ParamFloat<px4::params::COM_THROW_SPEED>) _param_com_throw_min_speed,
-		(ParamFloat<px4::params::COM_THROW_HGT>) _param_com_throw_height
+		(ParamFloat<px4::params::COM_THROW_HGT>) _param_com_throw_height,
+		(ParamFloat<px4::params::COM_THROW_TCONF>) _param_com_throw_confirm_time,
+		(ParamFloat<px4::params::COM_THROW_VUP>) _param_com_throw_min_up_speed,
+		(ParamFloat<px4::params::COM_THROW_VDN>) _param_com_throw_min_down_speed,
+		(ParamFloat<px4::params::COM_THROW_TMO>) _param_com_throw_timeout
 	);
 };

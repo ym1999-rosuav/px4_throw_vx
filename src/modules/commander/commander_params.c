@@ -1008,9 +1008,11 @@ PARAM_DEFINE_INT32(COM_THROW_EN, 0);
 /**
  * Minimum speed for the throw start
  *
- * When the throw launch is enabled, the drone will only allow motors to spin after this speed
- * is exceeded before detecting the freefall. This is a safety feature to ensure the drone does
- * not turn on after accidental drop or a rapid movement before the throw.
+ * When horizontal velocity is valid, the three-dimensional speed must exceed
+ * this threshold. Without horizontal aiding (for example, no GPS or optical
+ * flow in Altitude mode), the upward vertical speed must exceed it instead.
+ * This is a safety feature to ensure the drone does not turn on after an
+ * accidental drop or a rapid movement before the throw.
  *
  * Set to 0 to disable.
  *
@@ -1040,7 +1042,68 @@ PARAM_DEFINE_FLOAT(COM_THROW_SPEED, 5);
  * @increment 0.1
  * @unit m
  */
-PARAM_DEFINE_FLOAT(COM_THROW_HGT, 1.0f);
+PARAM_DEFINE_FLOAT(COM_THROW_HGT, 0.4f);
+
+/**
+ * Throw launch condition confirmation time
+ *
+ * The height-gain or descent fallback condition must remain continuously true
+ * for this duration before motors are allowed to start.
+ *
+ * @group Commander
+ * @min 0
+ * @max 0.2
+ * @decimal 2
+ * @increment 0.01
+ * @unit s
+ */
+PARAM_DEFINE_FLOAT(COM_THROW_TCONF, 0.05f);
+
+/**
+ * Minimum upward speed for throw height confirmation
+ *
+ * The vehicle must be moving upward at least this fast while the height-gain
+ * condition is confirmed. In NED coordinates this is applied to negative vz.
+ *
+ * @group Commander
+ * @min 0.1
+ * @max 2
+ * @decimal 1
+ * @increment 0.1
+ * @unit m/s
+ */
+PARAM_DEFINE_FLOAT(COM_THROW_VUP, 0.3f);
+
+/**
+ * Minimum downward speed for the throw launch fallback
+ *
+ * After a real climb has been observed, this downward speed confirms that the
+ * vehicle has passed its apex when the height trigger did not start the motors.
+ *
+ * @group Commander
+ * @min 0.1
+ * @max 2
+ * @decimal 1
+ * @increment 0.1
+ * @unit m/s
+ */
+PARAM_DEFINE_FLOAT(COM_THROW_VDN, 0.3f);
+
+/**
+ * Throw launch confirmation timeout
+ *
+ * If neither the height condition nor the descent fallback is confirmed within
+ * this duration after throw detection, a warning is emitted and motor lockdown
+ * remains active. Disarm before retrying.
+ *
+ * @group Commander
+ * @min 0.5
+ * @max 5
+ * @decimal 1
+ * @increment 0.1
+ * @unit s
+ */
+PARAM_DEFINE_FLOAT(COM_THROW_TMO, 2.0f);
 
 /**
  * Remaining flight time low failsafe
